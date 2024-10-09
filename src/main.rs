@@ -15,9 +15,14 @@ use stremio_service::args::Args;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
-
+    // parse args before env_logger init to set the appropriate log level for native messaging
     let cli = Args::parse();
+
+    // the native messaging web extension will error if any output is >= 1 MB
+    env_logger::Builder::from_env(Env::default().default_filter_or(match cli.addon_id {
+        Some(_) => "off",
+        None => "info"
+    })).init();
 
     if let Some(url) = cli.open.as_ref() {
         if !url.is_empty() {

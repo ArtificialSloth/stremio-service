@@ -1,0 +1,7 @@
+{
+    "name": "StremioService",
+    "description": "Manages Stremio Service while browsing web.stremio.com",
+    "path": "stremio-service.exe",
+    "type": "stdio",
+    "allowed_extensions": ["stremio-extension@artificialsloth.stremio-extension"]
+}

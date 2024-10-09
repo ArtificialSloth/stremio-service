@@ -22,7 +22,7 @@ AppId={{DD3870DA-AF3C-4C73-B010-72944AB610C6}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppCopyright={#MyAppCopyright} 
+AppCopyright={#MyAppCopyright}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
@@ -47,8 +47,8 @@ WizardImageFile={#SourcePath}\windows-installer.bmp
 WizardSmallImageFile={#SourcePath}\windows-installer-header.bmp
 SetupIconFile={#SourcePath}..\resources\service.ico
 UninstallDisplayIcon={app}\{#MyAppExeName},0
-SignTool=stremiosign
-SignedUninstaller=yes
+; SignTool=stremiosign
+; SignedUninstaller=yes
 
 [Code]
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -162,6 +162,7 @@ Source: "{#MyAppResBinLocation}avutil-56.dll"; DestDir: "{app}"; Flags: ignoreve
 Source: "{#MyAppResBinLocation}postproc-55.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppResBinLocation}swresample-3.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppResBinLocation}swscale-5.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourcePath}..\resources\native-messaging\windows\firefox.json"; DestDir: "{app}"; Flags: ignoreversion
 
 [Registry]
 
@@ -170,6 +171,9 @@ Root: HKA; Subkey: "Software\Classes\StremioService"; ValueType: string; ValueNa
 Root: HKA; Subkey: "Software\Classes\StremioService"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\StremioService\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\StremioService\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""-o"" ""%1"""; Flags: uninsdeletekey
+
+; This is required for firefox native messaging
+Root: HKA; Subkey: "Software\Mozilla\NativeMessagingHosts\{#MyAppShortName}"; ValueType: string; ValueName: ""; ValueData: "{app}\firefox.json"; Flags: uninsdeletekey
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

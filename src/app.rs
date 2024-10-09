@@ -35,6 +35,11 @@ pub static IS_UPDATER_SUPPORTED: bool = true;
 #[cfg(target_os = "linux")]
 pub static IS_UPDATER_SUPPORTED: bool = false;
 
+// Event to properly shutdown the server when the web extension disconnects
+enum CustomEvents {
+    NativeMsgDisconnect,
+}
+
 #[derive(RustEmbed)]
 #[folder = "icons"]
 struct Icons;
@@ -60,6 +65,7 @@ pub struct Config {
     pub updater_endpoint: Url,
     pub skip_update: bool,
     pub force_update: bool,
+    pub native_msg: bool,
 }
 
 impl Config {
@@ -75,8 +81,10 @@ impl Config {
         cache_dir: PathBuf,
         service_bins_dir: PathBuf,
     ) -> Result<Self, Error> {
+        let native_msg = args.addon_id.is_some();
+
         let server =
-            server::Config::new(service_bins_dir).context("Server configuration failed")?;
+            server::Config::new(service_bins_dir, native_msg).context("Server configuration failed")?;
 
         let lockfile = cache_dir.join("lock");
 
@@ -97,6 +105,7 @@ impl Config {
             server,
             skip_update: args.skip_updater,
             force_update: args.force_update,
+            native_msg,
         })
     }
     fn get_random_updater_endpoint() -> String {
@@ -131,7 +140,7 @@ impl Application {
         let _fruit_app = register_apple_event_callbacks();
 
         // Showing the system tray icon as soon as possible to give the user a feedback
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoop::<CustomEvents>::with_user_event();
         let (mut system_tray, open_item_id, quit_item_id) = create_system_tray(&event_loop)?;
 
         let current_version = env!("CARGO_PKG_VERSION")
@@ -152,6 +161,15 @@ impl Application {
         // cheap to clone and interior mutability
         let mut server = self.server.clone();
 
+        if self.config.native_msg {
+            let event_loop_proxy = event_loop.create_proxy();
+            tokio::spawn(async move {
+                let mut buffer = String::new();
+                std::io::stdin().read_line(&mut buffer).expect("Failed to read stdin");
+                event_loop_proxy.send_event(CustomEvents::NativeMsgDisconnect)
+            });
+        }
+
         event_loop.run(move |event, _event_loop, control_flow| {
             *control_flow = ControlFlow::Wait;
 
@@ -165,6 +183,10 @@ impl Application {
                         *control_flow = ControlFlow::Exit;
                     }
                 }
+                Event::UserEvent(CustomEvents::NativeMsgDisconnect) => {
+                    system_tray.take();
+                    *control_flow = ControlFlow::Exit;
+                }
                 Event::LoopDestroyed => {
                     if let Err(err) = server.stop() {
                         error!("{err}")
@@ -177,7 +199,7 @@ impl Application {
 }
 
 fn create_system_tray(
-    event_loop: &EventLoop<()>,
+    event_loop: &EventLoop<CustomEvents>,
 ) -> Result<(Option<SystemTray>, MenuId, MenuId), anyhow::Error> {
     let mut tray_menu = ContextMenu::new();
     let open_item = tray_menu.add_item(MenuItemAttributes::new("Open Stremio Web"));
@@ -256,7 +278,7 @@ fn make_it_autostart(home_dir: impl AsRef<Path>) {
             <?xml version=\"1.0\" encoding=\"UTF-8\"?>
             <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
             <plist version=\"1.0\">
-            <dict>  
+            <dict>
                 <key>Label</key>
                 <string>{}</string>
                 <key>ProgramArguments</key>

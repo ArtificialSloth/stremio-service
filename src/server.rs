@@ -30,6 +30,7 @@ pub struct Config {
     node: PathBuf,
     ffmpeg: PathBuf,
     ffprobe: PathBuf,
+    native_msg: bool,
 }
 
 impl Config {
@@ -38,7 +39,7 @@ impl Config {
     /// # Errors
     ///
     /// When one of the binaries required for running the server is missing.
-    pub fn new(directory: PathBuf) -> Result<Self, Error> {
+    pub fn new(directory: PathBuf, native_msg: bool) -> Result<Self, Error> {
         if directory.is_dir() {
             let server = directory.join("server.js");
             let node = directory.join(Self::node_bin()?);
@@ -63,6 +64,7 @@ impl Config {
                 node,
                 ffmpeg,
                 ffprobe,
+                native_msg,
             })
         } else {
             bail!(
@@ -111,6 +113,11 @@ impl Server {
         command.env("FFMPEG_BIN", &self.inner.config.ffmpeg);
         command.env("FFPROBE_BIN", &self.inner.config.ffprobe);
         command.arg(&self.inner.config.server);
+
+        // the native messaging web extension will error if any output is >= 1 MB
+        if self.inner.config.native_msg {
+            command.stdout(std::process::Stdio::null());
+        }
 
         info!("Starting server.js: {:#?}", command);
 

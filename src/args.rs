@@ -40,4 +40,16 @@ pub struct Args {
     /// If empty URL or no url is provided, the service will skip this argument.
     #[clap(short, long)]
     pub open: Option<String>,
+
+    /// Specifies the path to the app manifest
+    ///
+    /// Sent by the native messaging web extension.
+    #[arg(index = 1, requires = "addon_id")]
+    pub app_manifest: Option<String>,
+
+    /// Specifies the native messaging addon ID
+    ///
+    /// Sent by the native messaging web extension.
+    #[arg(index = 2)]
+    pub addon_id: Option<String>
 }
