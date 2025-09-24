@@ -1,32 +1,28 @@
-// Copyright (C) 2017-2024 Smart Code OOD 203358507
+// Copyright (C) 2017-2025 Smart Code OOD 203358507
 
-use anyhow::{anyhow, Context, Error};
+use anyhow::Context;
 use fslock::LockFile;
 use log::{error, info};
-use rand::Rng;
-use rust_embed::RustEmbed;
 #[cfg(all(feature = "bundled", any(target_os = "linux", target_os = "macos")))]
 use std::path::Path;
 use std::path::PathBuf;
 use tao::{
     event::Event,
-    event_loop::{ControlFlow, EventLoop},
-    menu::{ContextMenu, MenuId, MenuItemAttributes},
-    system_tray::{SystemTray, SystemTrayBuilder},
-    TrayId,
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder},
 };
-use url::Url;
+use tray_icon::{
+    menu::{Menu, MenuEvent, MenuId, MenuItem},
+    TrayIcon, TrayIconBuilder,
+};
 
 use crate::{
-    args::Args,
-    constants::{STREMIO_URL, UPDATE_ENDPOINT},
+    config::Config,
+    constants::{APP_ICON, STREMIO_URL},
     server::Server,
     updater::Updater,
     util::load_icon,
 };
 use urlencoding::encode;
-
-use crate::server;
 
 /// Updater is supported only for non-linux operating systems.
 #[cfg(not(target_os = "linux"))]
@@ -35,84 +31,15 @@ pub static IS_UPDATER_SUPPORTED: bool = true;
 #[cfg(target_os = "linux")]
 pub static IS_UPDATER_SUPPORTED: bool = false;
 
-// Event to properly shutdown the server when the web extension disconnects
-enum CustomEvents {
-    NativeMsgDisconnect,
+enum UserEvent {
+    MenuEvent(MenuId),
+    NativeMsgEvent,
 }
-
-#[derive(RustEmbed)]
-#[folder = "icons"]
-struct Icons;
 
 pub struct Application {
     /// The video server process
     server: Server,
     config: Config,
-}
-
-#[derive(Debug, Clone)]
-pub struct Config {
-    /// The Home directory of the user running the service
-    /// used to make the application an autostart one (on `*nix` systems)
-    #[cfg_attr(any(not(feature = "bundled"), target_os = "windows"), allow(dead_code))]
-    home_dir: PathBuf,
-
-    /// The lockfile that guards against running multiple instances of the service.
-    lockfile: PathBuf,
-
-    /// The server configuration
-    server: server::Config,
-    pub updater_endpoint: Url,
-    pub skip_update: bool,
-    pub force_update: bool,
-    pub native_msg: bool,
-}
-
-impl Config {
-    /// Try to create by validating the application configuration.
-    ///
-    /// It will initialize the server [`server::Config`] and if it fails it will return an error.
-    ///
-    /// If `self_update` is `true` and it is a supported platform for the updater (see [`IS_UPDATER_SUPPORTED`])
-    /// it will check for the existence of the `updater` binary at the given location.
-    pub fn new(
-        args: Args,
-        home_dir: PathBuf,
-        cache_dir: PathBuf,
-        service_bins_dir: PathBuf,
-    ) -> Result<Self, Error> {
-        let native_msg = args.addon_id.is_some();
-
-        let server =
-            server::Config::new(service_bins_dir, native_msg).context("Server configuration failed")?;
-
-        let lockfile = cache_dir.join("lock");
-
-        let updater_endpoint = if let Some(endpoint) = args.updater_endpoint {
-            endpoint
-        } else {
-            let mut url = Url::parse(Self::get_random_updater_endpoint().as_str())?;
-            if args.release_candidate {
-                url.query_pairs_mut().append_pair("rc", "true");
-            }
-            url
-        };
-
-        Ok(Self {
-            updater_endpoint,
-            home_dir,
-            lockfile,
-            server,
-            skip_update: args.skip_updater,
-            force_update: args.force_update,
-            native_msg,
-        })
-    }
-    fn get_random_updater_endpoint() -> String {
-        let mut rng = rand::thread_rng();
-        let index = rng.gen_range(0..UPDATE_ENDPOINT.len());
-        UPDATE_ENDPOINT[index].to_string()
-    }
 }
 
 impl Application {
@@ -133,15 +60,16 @@ impl Application {
         }
 
         #[cfg(all(feature = "bundled", any(target_os = "linux", target_os = "macos")))]
-        make_it_autostart(self.config.home_dir.clone());
+        make_it_autostart(self.config.home_dir.clone()).await;
 
         // NOTE: we do not need to run the Fruitbasket event loop but we do need to keep `app` in-scope for the full lifecycle of the app
         #[cfg(target_os = "macos")]
         let _fruit_app = register_apple_event_callbacks();
 
         // Showing the system tray icon as soon as possible to give the user a feedback
-        let event_loop = EventLoop::<CustomEvents>::with_user_event();
-        let (mut system_tray, open_item_id, quit_item_id) = create_system_tray(&event_loop)?;
+        let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+        let (mut system_tray, open_item_id, quit_item_id) =
+            create_system_tray(&event_loop, &self.config.tray_icon)?;
 
         let current_version = env!("CARGO_PKG_VERSION")
             .parse()
@@ -166,7 +94,7 @@ impl Application {
             tokio::spawn(async move {
                 let mut buffer = String::new();
                 std::io::stdin().read_line(&mut buffer).expect("Failed to read stdin");
-                event_loop_proxy.send_event(CustomEvents::NativeMsgDisconnect)
+                event_loop_proxy.send_event(UserEvent::NativeMsgEvent)
             });
         }
 
@@ -174,19 +102,20 @@ impl Application {
             *control_flow = ControlFlow::Wait;
 
             match event {
-                Event::MenuEvent { menu_id, .. } => {
-                    if menu_id == open_item_id {
-                        open_stremio_web(None);
-                    }
-                    if menu_id == quit_item_id {
-                        *control_flow = ControlFlow::Exit;
-                    }
-                }
-                Event::UserEvent(CustomEvents::NativeMsgDisconnect) => {
-                    *control_flow = ControlFlow::Exit;
-                }
+                Event::UserEvent(event) => match event {
+                    UserEvent::MenuEvent(menu_id) => {
+                        if menu_id == open_item_id {
+                            open_stremio_web(None);
+                        }
+                        if menu_id == quit_item_id {
+                            *control_flow = ControlFlow::Exit;
+                        }
+                    },
+                    UserEvent::NativeMsgEvent => *control_flow = ControlFlow::Exit
+                },
                 Event::LoopDestroyed => {
                     system_tray.take();
+
                     if let Err(err) = server.stop() {
                         error!("{err}")
                     }
@@ -198,25 +127,38 @@ impl Application {
 }
 
 fn create_system_tray(
-    event_loop: &EventLoop<CustomEvents>,
-) -> Result<(Option<SystemTray>, MenuId, MenuId), anyhow::Error> {
-    let mut tray_menu = ContextMenu::new();
-    let open_item = tray_menu.add_item(MenuItemAttributes::new("Open Stremio Web"));
-    let quit_item = tray_menu.add_item(MenuItemAttributes::new("Quit"));
+    event_loop: &EventLoop<UserEvent>,
+    icon_dir: &PathBuf,
+) -> Result<(Option<TrayIcon>, MenuId, MenuId), anyhow::Error> {
+    let open_item = MenuItem::new("Open Stremio Web", true, None);
+    let quit_item = MenuItem::new("Quit", true, None);
 
-    let version_item_label = format!("v{}", env!("CARGO_PKG_VERSION"));
-    let version_item = MenuItemAttributes::new(version_item_label.as_str()).with_enabled(false);
-    tray_menu.add_item(version_item);
+    let version_label = format!("v{}", env!("CARGO_PKG_VERSION"));
+    let version_item = MenuItem::new(version_label.as_str(), false, None);
 
-    let icon_file = Icons::get("icon.png").ok_or_else(|| anyhow!("Failed to get icon file"))?;
-    let icon = load_icon(icon_file.data.as_ref());
+    let menu = Menu::new();
+    menu.append_items(&[&open_item, &quit_item, &version_item])
+        .context("Failed to append menu items")?;
 
-    let system_tray = SystemTrayBuilder::new(icon, Some(tray_menu))
-        .with_id(TrayId::new("main"))
-        .build(event_loop)
-        .context("Failed to build the application system tray")?;
+    let icon = load_icon(APP_ICON);
 
-    Ok((Some(system_tray), open_item.id(), quit_item.id()))
+    let tray_icon = TrayIconBuilder::new()
+        .with_menu(Box::new(menu))
+        .with_icon(icon)
+        .with_temp_dir_path(icon_dir)
+        .build()
+        .context("Failed to build tray icon")?;
+
+    let proxy = event_loop.create_proxy();
+    tray_icon::menu::MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
+        proxy.send_event(UserEvent::MenuEvent(event.id)).ok();
+    }));
+
+    Ok((
+        Some(tray_icon),
+        open_item.id().to_owned(),
+        quit_item.id().to_owned(),
+    ))
 }
 
 /// Handles `stremio://` urls by replacing the custom scheme with `https://`
@@ -243,25 +185,34 @@ fn open_stremio_web(addon_manifest_url: Option<String>) {
 
 /// Only for Linux and MacOS
 #[cfg(all(feature = "bundled", any(target_os = "linux", target_os = "macos")))]
-fn make_it_autostart(home_dir: impl AsRef<Path>) {
+async fn make_it_autostart(home_dir: impl AsRef<Path>) {
     #[cfg(target_os = "linux")]
     {
         use crate::{
             constants::{AUTOSTART_CONFIG_PATH, DESKTOP_FILE_NAME, DESKTOP_FILE_PATH},
             util::create_dir_if_does_not_exists,
         };
+        use ashpd::desktop::background::Background;
 
-        create_dir_if_does_not_exists(&home_dir.as_ref().join(AUTOSTART_CONFIG_PATH));
+        if Path::new("/.flatpak-info").exists() {
+            let request = Background::request().auto_start(true);
 
-        let from = PathBuf::from(DESKTOP_FILE_PATH).join(DESKTOP_FILE_NAME);
-        let to = home_dir
-            .as_ref()
-            .join(AUTOSTART_CONFIG_PATH)
-            .join(DESKTOP_FILE_NAME);
+            if let Err(e) = request.send().await.and_then(|r| r.response()) {
+                error!("Failed to request autostart: {}", e);
+            }
+        } else {
+            create_dir_if_does_not_exists(&home_dir.as_ref().join(AUTOSTART_CONFIG_PATH));
 
-        if !to.exists() {
-            if let Err(e) = std::fs::copy(from, to) {
-                error!("Failed to copy desktop file to autostart location: {}", e);
+            let from = PathBuf::from(DESKTOP_FILE_PATH).join(DESKTOP_FILE_NAME);
+            let to = home_dir
+                .as_ref()
+                .join(AUTOSTART_CONFIG_PATH)
+                .join(DESKTOP_FILE_NAME);
+
+            if !to.exists() {
+                if let Err(e) = std::fs::copy(from, to) {
+                    error!("Failed to copy desktop file to autostart location: {}", e);
+                }
             }
         }
     }

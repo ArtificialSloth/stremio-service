@@ -1,7 +1,8 @@
-// Copyright (C) 2017-2024 Smart Code OOD 203358507
+// Copyright (C) 2017-2025 Smart Code OOD 203358507
 
 pub mod app;
 pub mod args;
+pub mod config;
 pub mod constants;
 pub mod server;
 pub mod updater;

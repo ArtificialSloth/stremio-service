@@ -1,7 +1,7 @@
-# Copyright (C) 2017-2024 Smart Code OOD 203358507
+# Copyright (C) 2017-2025 Smart Code OOD 203358507
 [package]
 name = "stremio-service"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2021"
 authors = ["Stremio"]
 description = "Stremio service - Freedom to Stream"
@@ -13,11 +13,11 @@ readme = "README.md"
 default-run = "stremio-service"
 
 [package.metadata.server]
-version = "v4.20.8"
+version = "v4.20.12"
 
 [features]
 default = []
-# Wheather or not we're running the app in a bundled (installed) mode.
+# Weather or not we're running the app in a bundled (installed) mode.
 #
 # The binary location for "bundled" is system-wide, while non-bundled
 # is locally inside `target/` and binaries paths will be based on
@@ -28,7 +28,7 @@ offline-build = []
 
 [dependencies]
 # for MacOS application bundling
-cargo_toml = "0.15"
+cargo_toml = "0.22"
 
 # CLI
 clap = { version = "4.0", features = ["derive"] }
@@ -42,9 +42,6 @@ tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 # Logging
 env_logger = "0.10"
 log = "0.4"
-
-# Application window manager
-tao = { version = "0.19", features = ["tray"] }
 
 # Home dir
 dirs = "5.0"
@@ -60,8 +57,6 @@ semver = "1.0"
 open = "4.1"
 # http calls
 reqwest = { version = "0.11", features = ["stream", "json"] }
-# embedding files in binary
-rust-embed = "6.4"
 serde = { version = "1", features = ["derive"] }
 futures-util = "0.3"
 serde_json = "1"
@@ -73,6 +68,11 @@ url = { version = "2.3", features = ["serde"] }
 
 urlencoding = "2.1"
 zip-extract = "0.1"
+tao = "0.32.8"
+tray-icon = { version = "0.20.0", default-features = false }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = "0.11"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # MacOS Apple Events handling
@@ -98,7 +98,7 @@ once_cell = "1.16"
 serde = "1"
 
 # For getting the Server.js version from this Cargo.toml file
-cargo_toml = "0.15"
+cargo_toml = "0.22"
 
 [dev-dependencies]
 walkdir = "2.3.3"
@@ -111,7 +111,7 @@ lto = true
 strip = "debuginfo"
 
 [package.metadata.deb]
-copyright = "Copyright (C) 2017-2024 Smart Code OOD 203358507"
+copyright = "Copyright (C) 2017-2025 Smart Code OOD 203358507"
 extended-description = "Media Center"
 # depends = "$auto, ffprobe (>=4.2.7)"
 depends = "$auto"
@@ -125,7 +125,7 @@ assets = [
     ["resources/bin/linux/ffmpeg", "/usr/share/stremio-service/ffmpeg", "755"],
     ["resources/bin/linux/ffprobe", "/usr/share/stremio-service/ffprobe", "755"],
     ["resources/bin/linux/server.js", "/usr/share/stremio-service/server.js", "755"],
-    ["LICENSE.md", "/usr/share/stremio-service/LICENSE.md", "644"],
+    ["LICENSE.md", "/usr/share/licenses/stremio-service/LICENSE.md", "644"],
     ["resources/com.stremio.service.desktop", "/usr/share/applications/com.stremio.service.desktop", "644"],
     ["resources/com.stremio.service.metainfo.xml", "/usr/share/metainfo/com.stremio.service.metainfo.xml", "644"],
     ["resources/com.stremio.service.svg", "/usr/share/icons/hicolor/scalable/apps/com.stremio.service.svg", "644"],
@@ -141,7 +141,7 @@ assets = [
     { source = "resources/bin/linux/ffmpeg", dest = "/usr/share/stremio-service/ffmpeg", mode = "755" },
     { source = "resources/bin/linux/ffprobe", dest = "/usr/share/stremio-service/ffprobe", mode = "755" },
     { source = "resources/bin/linux/server.js", dest = "/usr/share/stremio-service/server.js", mode = "755" },
-    { source = "LICENSE.md", dest = "/usr/share/stremio-service/LICENSE.md", mode = "644" },
+    { source = "LICENSE.md", dest = "/usr/share/licenses/stremio-service/LICENSE.md", mode = "644" },
     { source = "resources/com.stremio.service.desktop", dest = "/usr/share/applications/com.stremio.service.desktop", mode = "644" },
     { source = "resources/com.stremio.service.metainfo.xml", dest = "/usr/share/metainfo/com.stremio.service.metainfo.xml", mode = "644" },
     { source = "resources/com.stremio.service.svg", dest = "/usr/share/icons/hicolor/scalable/apps/com.stremio.service.svg", mode = "644" },
@@ -158,7 +158,7 @@ name = "StremioService"
 display_name = "Stremio Service"
 identifier = "com.stremio.service"
 icon = ["resources/service.icns", "StremioService.icns"]
-copyright = "Copyright (C) 2017-2024 Smart Code OOD 203358507"
+copyright = "Copyright (C) 2017-2025 Smart Code OOD 203358507"
 url_scheme = "stremio"
 executable = "stremio-service"
 bins = [

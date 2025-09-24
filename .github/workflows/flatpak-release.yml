@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2024 Smart Code OOD 203358507
+# Copyright (C) 2017-2025 Smart Code OOD 203358507
 name: Flatpak Release
 
 on:
@@ -25,9 +25,9 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install flatpak-builder
           sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install -y org.gnome.Sdk//44
-          sudo flatpak install -y org.gnome.Platform//44
-          sudo flatpak install -y org.freedesktop.Sdk.Extension.rust-stable//22.08
+          sudo flatpak install -y org.freedesktop.Sdk//24.08
+          sudo flatpak install -y org.freedesktop.Platform//24.08
+          sudo flatpak install -y org.freedesktop.Sdk.Extension.rust-stable//24.08
       - name: Setup python
         uses: actions/setup-python@v5
         with:
@@ -35,7 +35,7 @@ jobs:
       - name: Install python modules
         run: python -m pip install toml aiohttp
       - name: Build
-        run: sh ./build-flatpak.sh
+        run: sh ./flatpak/build.sh
       - name: Get current date
         id: date
         run: echo "TODAY_DATE=$(date +'%d %b %Y')" >> $GITHUB_OUTPUT

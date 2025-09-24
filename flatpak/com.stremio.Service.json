@@ -1,0 +1,57 @@
+{
+    "app-id": "com.stremio.Service",
+    "runtime": "org.freedesktop.Platform",
+    "runtime-version": "24.08",
+    "sdk": "org.freedesktop.Sdk",
+    "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+    "command": "stremio-service",
+    "finish-args": [
+        "--share=network",
+        "--share=ipc",
+        "--socket=fallback-x11",
+        "--socket=wayland",
+        "--device=dri",
+        "--filesystem=xdg-run/stremio-service:create",
+        "--talk-name=org.kde.StatusNotifierWatcher"
+    ],
+    "build-options": {
+        "append-path": "/usr/lib/sdk/rust-stable/bin"
+    },
+    "modules": [
+        "shared-modules/libappindicator/libappindicator-gtk3-12.10.json",
+        {
+            "name": "service",
+            "buildsystem": "simple",
+            "build-options": {
+                "env": {
+                    "CARGO_HOME": "/run/build/service/cargo",
+                    "RUSTFLAGS": "-L/app/lib"
+                }
+            },
+            "build-commands": [
+                "cargo --offline fetch --manifest-path Cargo.toml --verbose",
+                "cargo --offline build --release --features=bundled,offline-build --verbose"
+            ],
+            "post-install": [
+                "install -Dm755 ./flatpak/stremio-service -t /app/bin/",
+                "install -Dm755 server.js -t /app/share/stremio-service/",
+                "install -Dm755 ./target/release/stremio-service -t /app/share/stremio-service/",
+                "install -Dm755 ./resources/bin/linux/stremio-runtime -t /app/share/stremio-service/",
+                "install -Dm755 ./resources/bin/linux/ffmpeg -t /app/share/stremio-service/",
+                "install -Dm755 ./resources/bin/linux/ffprobe -t /app/share/stremio-service/",
+                "install -Dm644 ./LICENSE.md -t /app/share/licenses/stremio-service/",
+                "install -Dm644 ./flatpak/com.stremio.Service.desktop /app/share/applications/com.stremio.Service.desktop",
+                "install -Dm644 ./resources/com.stremio.service.metainfo.xml /app/share/metainfo/com.stremio.Service.metainfo.xml",
+                "install -Dm644 ./resources/com.stremio.service.svg /app/share/icons/hicolor/scalable/apps/com.stremio.Service.svg"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "../"
+                },
+                "cargo-sources.json",
+                "server-source.json"
+            ]
+        }
+    ]
+}
