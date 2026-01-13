@@ -71,18 +71,20 @@ impl Application {
         let (mut system_tray, open_item_id, quit_item_id) =
             create_system_tray(&event_loop, &self.config.tray_icon)?;
 
-        let current_version = env!("CARGO_PKG_VERSION")
-            .parse()
-            .expect("Should always be valid");
-        let updater = Updater::new(current_version, &self.config);
-        let updated = updater.prompt_and_update().await;
+        if !self.config.native_msg {
+            let current_version = env!("CARGO_PKG_VERSION")
+                .parse()
+                .expect("Should always be valid");
+            let updater = Updater::new(current_version, &self.config);
+            let updated = updater.prompt_and_update().await;
 
-        if updated {
-            // Exit current process as the updater has spawn the
-            // new version in a separate process.
-            // We haven't started the server.js in this instance yet
-            // so it is safe to run the second service by the updater
-            return Ok(());
+            if updated {
+                // Exit current process as the updater has spawn the
+                // new version in a separate process.
+                // We haven't started the server.js in this instance yet
+                // so it is safe to run the second service by the updater
+                return Ok(());
+            }
         }
 
         self.server.start().context("Failed to start server.js")?;
