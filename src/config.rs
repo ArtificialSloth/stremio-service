@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2025 Smart Code OOD 203358507
+// Copyright (C) 2017-2026 Smart Code OOD 203358507
 
 use std::path::PathBuf;
 
@@ -40,9 +40,13 @@ impl Config {
     pub fn new(args: Args) -> Result<Self, Error> {
         let home_dir = dirs::home_dir().context("Failed to get home dir")?;
         let cache_dir = dirs::cache_dir().context("Failed to get cache dir")?;
-        let runtime_dir = dirs::runtime_dir().context("Failed to get runtime dir")?;
 
-        let tray_icon = runtime_dir.join("stremio-service");
+        let tray_icon = if cfg!(target_os = "linux") {
+            let runtime_dir = dirs::runtime_dir().context("Failed to get runtime dir")?;
+            runtime_dir.join("stremio-service")
+        } else {
+            PathBuf::new()
+        };
 
         let lockfile = cache_dir.join("lock");
 
